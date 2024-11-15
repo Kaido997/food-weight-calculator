@@ -1,0 +1,76 @@
+{{ block "index" .}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/htmx.org/dist/htmx.js"></script>
+    <title>{{ .Title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 35px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            justify-content: center; 
+            width: 365px;
+        }
+        input, select, button {
+            width: 95%;
+            max-width: 365px;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #28a745;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .result {
+            font-size: 18px;
+            margin-top: 15px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ .Title }}</h1>
+        <form hx-target="#result" hx-post="/calculate">
+            <label for="rawWeight">{{ .RawWeightLabel }}:</label>
+            <input type="number" name="quantity" id="rawWeight" placeholder={{ .RawWeightInputPlaceholder }} required>
+            <label for="foodType">{{.FoodTypeLabel }}:</label>
+            <select id="foodType" type="text" name="food-type">
+                {{range $key, $val := .FoodTypes }}
+                    <option value={{ $key }}>{{ $val }}</option>
+                {{end}}
+            </select>
+        
+                <button type="submit">{{ .CalcButtonLabel }}</button>
+        </form>
+        
+            {{ template "calculation-result"  .}}
+    </div>
+</body>
+</html>
+{{ end }}
+
+{{ block "calculation-result" .}}
+<div id="result" class="result">{{ .Text }} {{ .Value }} {{ .Unit }}</div>
+{{ end }}
