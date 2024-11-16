@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/kaido997/weightcalc/api/handler"
@@ -48,7 +49,20 @@ func main() {
 		if r.Method != "GET" {
 			return
 		}
+        in := []string{"en", "it"}
+        val := r.URL.Query()
+        if val != nil && val["lang"] !=nil && slices.Contains(in, val["lang"][0]) {
+            translation = database.GetTranslation(val["lang"][0])
+    
+        }
 		templ.Render(w, "index", translation)
+	})
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Println("get icon")
+		if r.Method != "GET" {
+			return
+		}
+		http.ServeFile(w, r, database.GetFaviconPath())
 	})
 
 	http.HandleFunc("/calculate", func(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +86,6 @@ func main() {
         templ.Render(w, "calculation-result", response);
 	})
     
-	http.ListenAndServe(api.PORT, nil)
+	log.Fatal(http.ListenAndServe(api.PORT, nil));
 
 }

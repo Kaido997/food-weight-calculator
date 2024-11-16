@@ -94,3 +94,8 @@ func GetTranslation(locale string) Translation {
 	return data
 
 }
+
+func GetFaviconPath() string {
+    curr, _ := os.Getwd()
+    return fmt.Sprintf("%s/web/assets/favicon.ico", curr)
+}
