@@ -31,8 +31,7 @@ func loadFile(path string) ([]byte, error) {
 	curr, _ := os.Getwd()
 	res, err := os.ReadFile(curr + path)
 	if err != nil {
-		log.Fatalf("Load File Error: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("Load File Error: %s", err)
 	}
 	return res, nil
 }
@@ -99,3 +98,4 @@ func GetFaviconPath() string {
     curr, _ := os.Getwd()
     return fmt.Sprintf("%s/web/assets/favicon.ico", curr)
 }
+

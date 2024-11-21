@@ -18,6 +18,8 @@ const (
     POUNDS = "lbs"
 )
 
+var KnownIPs []string = []string{};
+
 type Templates struct {
 	templates *template.Template
 }
@@ -45,6 +47,12 @@ func main() {
     translation := database.GetTranslation("en")
 	templ := NewTemplates()
 
+    database.GetAnalytics()
+
+    database.NewCounterAnalytics("page-load")
+    database.NewCounterAnalytics("calculation")
+
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			return
@@ -55,6 +63,7 @@ func main() {
             translation = database.GetTranslation(val["lang"][0])
     
         }
+        database.CounterIncr("page-load")
 		templ.Render(w, "index", translation)
 	})
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +78,7 @@ func main() {
         if r.Method != "POST" {
             return
         }
+
         if err := r.ParseForm(); err != nil {
             fmt.Fprintf(w, "BadRequest: %s", err)
         }
@@ -77,12 +87,14 @@ func main() {
             fmt.Fprintf(w, "BadRequest: %s", err)
         }
 		var data api.CalcCookedDTO = api.CalcCookedDTO{FoodType: r.PostForm["food-type"][0], Quantity: float32(float)}
+        
         response :=  ResultResponseDTO{
             Text: translation.ResultLabel, 
             Value: api.CalculateCookedFood(data.FoodType,data.Quantity),
             Unit: fmt.Sprintf("(%s.)", GRAMS),
             
         }
+        database.CounterIncr("calculation")
         templ.Render(w, "calculation-result", response);
 	})
     
