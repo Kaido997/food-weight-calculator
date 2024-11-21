@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 
@@ -98,6 +99,10 @@ func main() {
         templ.Render(w, "calculation-result", response);
 	})
     
-	log.Fatal(http.ListenAndServe(api.PORT, nil));
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8080"
+    }
+    log.Fatal(http.ListenAndServe(":"+port, nil));
 
 }

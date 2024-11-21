@@ -8,10 +8,10 @@ import (
 	"net/http"
 )
 const ( 
-    PORT = ":3000"
     VERSION = "1"
     API_BASE_URL = "/api/v" + VERSION + "/" 
 )
+
 
 type CalcCookedDTO struct {
 	FoodType string  `json:"food-type"`
