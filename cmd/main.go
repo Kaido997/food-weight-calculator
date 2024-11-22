@@ -43,7 +43,11 @@ type ResultResponseDTO struct {
 
 func main() {
     if os.Getenv("ENV") == "PROD" {
-        os.Chdir(os.Getenv("WORKDIR"))
+        log.Printf("ENV found '%s' setting wd to '%s'", os.Getenv("ENV"), os.Getenv("WORKDIR"))
+        if err := os.Chdir(os.Getenv("WORKDIR")); err != nil {
+            log.Fatalf("Unable to set workdir because %s", err)
+        }
+
     } else {
         log.Printf("ENV not found. found '%s'", os.Getenv("ENV"))
     }
