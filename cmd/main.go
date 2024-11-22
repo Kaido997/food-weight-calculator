@@ -44,6 +44,8 @@ type ResultResponseDTO struct {
 func main() {
     if os.Getenv("ENV") == "PROD" {
         os.Chdir(os.Getenv("WORKDIR"))
+    } else {
+        log.Printf("ENV not found. found '%s'", os.Getenv("ENV"))
     }
 	log.Println("Starting application")
 	database.LoadTable()
@@ -104,6 +106,7 @@ func main() {
     
     port := os.Getenv("PORT")
     if port == "" {
+        log.Printf("PORT not found. found '%s' setting to default 8080", port)
         port = "8080"
     }
     log.Fatal(http.ListenAndServe(":"+port, nil));
