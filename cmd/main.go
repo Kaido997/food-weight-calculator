@@ -42,6 +42,9 @@ type ResultResponseDTO struct {
 }
 
 func main() {
+    if os.Getenv("ENV") == "PROD" {
+        os.Chdir(os.Getenv("WORKDIR"))
+    }
 	log.Println("Starting application")
 	database.LoadTable()
 	api.Map()

@@ -12,6 +12,8 @@ primary_region = 'cdg'
 
 [env]
   PORT = '8080'
+  ENV = 'PROD'
+  WORKDIR = '/usr/src/app'
 
 [http_service]
   internal_port = 8080
