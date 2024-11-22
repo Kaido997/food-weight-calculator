@@ -17,7 +17,8 @@ func save(data map[string]uint) error {
 	    return fmt.Errorf("Error while dumping json: %s", err)
 	}
 
-	if err := os.WriteFile("./internal/database/analytics/analytics.json", encoded, 0644); err != nil {
+    wd, _ := os.Getwd()
+	if err := os.WriteFile(wd + "internal/database/analytics/analytics.json", encoded, 0644); err != nil {
 	    return fmt.Errorf("Error while wrinting file: %s", err)
 	}
     return nil
@@ -25,7 +26,7 @@ func save(data map[string]uint) error {
 }
 
 func GetAnalytics() error {
-	file, err := loadFile("/internal/database/analytics/analytics.json")
+	file, err := loadFile("internal/database/analytics/analytics.json")
 
 	if err != nil {
 		return fmt.Errorf("File loading error: %s", err)

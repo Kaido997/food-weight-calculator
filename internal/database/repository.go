@@ -28,8 +28,8 @@ func (e *notFound) Error() string {
 }
 
 func loadFile(path string) ([]byte, error) {
-	curr, _ := os.Getwd()
-	res, err := os.ReadFile(curr + path)
+    wd, _ := os.Getwd()
+	res, err := os.ReadFile(wd + path)
 	if err != nil {
 		return nil, fmt.Errorf("Load File Error: %s", err)
 	}
@@ -37,15 +37,15 @@ func loadFile(path string) ([]byte, error) {
 }
 
 func LoadTable() (*table, error) {
-	res, err := loadFile("/internal/database/foodtable.json")
+	res, err := loadFile("internal/database/foodtable.json")
 	if err != nil {
-		log.Fatalf("Load table Error: %s", err)
+		log.Printf("Load table Error: %s", err)
 		return nil, err
 	}
 	data := []foodTable{}
 
 	if err := json.Unmarshal(res, &data); err != nil {
-		log.Fatalf("Json parse Error: %s", err)
+		log.Printf("Json parse Error: %s", err)
 		return nil, err
 	}
 	var keys []string
@@ -80,14 +80,14 @@ type Translation struct {
 }
 
 func GetTranslation(locale string) Translation {
-	res, err := loadFile("/internal/database/translations/" + locale + ".json")
+	res, err := loadFile("internal/database/translations/" + locale + ".json")
 	if err != nil {
-		log.Fatalf("Load table Error: %s", err)
+		log.Printf("Load table Error: %s", err)
 	}
 	var data Translation
 
 	if err := json.Unmarshal(res, &data); err != nil {
-		log.Fatalf("Json parse Error: %s", err)
+		log.Printf("Json parse Error: %s", err)
 	}
 
 	return data
