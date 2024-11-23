@@ -14,4 +14,5 @@ COPY --from=builder /run-app /usr/local/bin/
 COPY --from=builder /usr/src/app/internal/database/foodtable.json /internal/database/foodtable.json
 COPY --from=builder /usr/src/app/internal/database/translations/ /internal/database/translations/
 COPY --from=builder /usr/src/app/internal/database/analytics/ /internal/database/analytics/
+COPY --from=builder /usr/src/app/web/assets /web/assets
 CMD ["run-app"]

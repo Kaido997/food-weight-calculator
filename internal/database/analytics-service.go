@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 var Analytics map[string]uint
@@ -18,7 +19,7 @@ func save(data map[string]uint) error {
 	}
 
     wd, _ := os.Getwd()
-	if err := os.WriteFile(wd + "internal/database/analytics/analytics.json", encoded, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(wd, "internal/database/analytics/analytics.json"), encoded, 0644); err != nil {
 	    return fmt.Errorf("Error while wrinting file: %s", err)
 	}
     return nil
@@ -86,7 +87,7 @@ func CounterIncr(path string) error {
 			if keys[k] == path {
 				Analytics[path]++
                 if err := save(Analytics); err != nil {
-                    log.Fatalf("Cannot increment '%s'", path)
+                    log.Fatalf("Cannot increment '%s' because %s occured", path, err)
                 }
 
 				break

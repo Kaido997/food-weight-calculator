@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 type foodTable struct {
@@ -28,8 +29,8 @@ func (e *notFound) Error() string {
 }
 
 func loadFile(path string) ([]byte, error) {
-    wd, _ := os.Getwd()
-	res, err := os.ReadFile(wd + path)
+	wd, _ := os.Getwd()
+	res, err := os.ReadFile(filepath.Join(wd, path))
 	if err != nil {
 		return nil, fmt.Errorf("Load File Error: %s", err)
 	}
@@ -76,6 +77,8 @@ type Translation struct {
 	FoodTypeLabel             string            `json:"food-type-label"`
 	CalcButtonLabel           string            `json:"calc-button-label"`
 	ResultLabel               string            `json:"result-label"`
+	MetaDescription           string            `json:"meta-description"`
+	MetaKeywords              string            `json:"meta-keywords"`
 	FoodTypes                 map[string]string `json:"food-types"`
 }
 
@@ -95,7 +98,6 @@ func GetTranslation(locale string) Translation {
 }
 
 func GetFaviconPath() string {
-    curr, _ := os.Getwd()
-    return fmt.Sprintf("%s/web/assets/favicon.ico", curr)
+	curr, _ := os.Getwd()
+	return fmt.Sprintf("%s/web/assets/favicon.ico", curr)
 }
-

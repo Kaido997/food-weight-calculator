@@ -10,7 +10,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-
 	"github.com/kaido997/weightcalc/api/handler"
 	"github.com/kaido997/weightcalc/internal/database"
 )
@@ -19,8 +18,6 @@ const (
     GRAMS = "gr"
     POUNDS = "lbs"
 )
-
-var KnownIPs []string = []string{};
 
 type Templates struct {
 	templates *template.Template

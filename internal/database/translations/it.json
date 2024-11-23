@@ -5,6 +5,8 @@
     "food-type-label": "Alimento",
     "calc-button-label": "Calcola peso cotto",
     "result-label": "Il peso cotto é",
+    "meta-description": "Calcolatore Peso Cotto - Scopri quanto pesa il tuo cibo cotto partendo dal peso crudo. Conversione facile e veloce per pasta, carne, verdure e altro.",
+    "meta-keywords": "calcolo peso cotto, peso crudo cotto, conversione alimenti, calcolatore peso cibo",
     "food-types": { 
         "FOOD_PASTA_SHORT": "Pasta di semola corta",
         "FOOD_PASTA_LONG": "Pasta di semola lunga",
