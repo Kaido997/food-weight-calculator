@@ -5,6 +5,8 @@
     "food-type-label": "Food type",
     "calc-button-label": "Calculate Cooked Weight",
     "result-label": "The cooked weight is",
+    "meta-description": "Cooked Weight Calculator - Calculate the cooked weight of food based on its raw weight. Easy and fast conversion for pasta, meat, vegetables, and more.",
+    "meta-keywords": "cooked weight calculator, raw to cooked weight, food weight conversion, food calculator",
     "food-types": {
         "FOOD_PASTA_SHORT": "Short semolina pasta",
         "FOOD_PASTA_LONG": "Long semolina pasta",

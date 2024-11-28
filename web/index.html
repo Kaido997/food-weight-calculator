@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content={{ .MetaDescription }}>
+    <meta name="keywords" content={{ .MetaKeywords }}>
+    <meta name="author" content="Kaido997">
     <script src="https://unpkg.com/htmx.org/dist/htmx.js"></script>
     <link rel="icon" src="/favicon.ico">
     <title>{{ .Title }}</title>
@@ -11,6 +14,7 @@
         body {
             font-family: Arial, sans-serif;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
@@ -48,9 +52,31 @@
             margin-top: 15px;
             color: #333;
         }
+        .language-selector {
+            margin-bottom: 2px;
+        }
+        .lang-flag {
+            margin-left: 5px;
+            cursor: pointer;
+        }
+        .lang-flag > a {
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
+    <header>
+    <div class="language-selector">
+            <span class="lang-flag">
+                <a href="/?lang=it"><img src="https://flagcdn.com/it.svg" alt="Italy" width="20" height="10">
+                </a>
+            </span>
+            <span class="lang-flag">
+                <a href="/?lang=en"><img src="https://flagcdn.com/gb.svg" alt="UK" width="20" height="10">
+                </a>
+            </span>
+    </div>
+    </header>
     <div class="container">
         <h1>{{ .Title }}</h1>
         <form hx-target="#result" hx-post="/calculate">
@@ -58,8 +84,8 @@
             <input type="number" name="quantity" id="rawWeight" placeholder={{ .RawWeightInputPlaceholder }} required>
             <label for="foodType">{{.FoodTypeLabel }}:</label>
             <select id="foodType" type="text" name="food-type">
-                {{range $key, $val := .FoodTypes }}
-                    <option value={{ $key }}>{{ $val }}</option>
+                {{range $val := .FoodTypes }}
+                    <option value={{ index $val 0 }}>{{ index $val 1 }}</option>
                 {{end}}
             </select>
         
