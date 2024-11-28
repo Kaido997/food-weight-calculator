@@ -1,0 +1,32 @@
+{{ block "analytics-counter" .}}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Analytics</title>
+    </head>
+<style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+</style>
+    <body>
+        <div class="container">
+            <span>Page load: {{ .PageLoad }}</span>
+            <span>|</span>
+            <span>Calculate fn: {{ .Calculation }}</span>
+        </div>
+    </body>
+</html>
+<html>
+</html>
+{{ end }}

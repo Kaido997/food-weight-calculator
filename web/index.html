@@ -84,8 +84,8 @@
             <input type="number" name="quantity" id="rawWeight" placeholder={{ .RawWeightInputPlaceholder }} required>
             <label for="foodType">{{.FoodTypeLabel }}:</label>
             <select id="foodType" type="text" name="food-type">
-                {{range $key, $val := .FoodTypes }}
-                    <option value={{ $key }}>{{ $val }}</option>
+                {{range $val := .FoodTypes }}
+                    <option value={{ index $val 0 }}>{{ index $val 1 }}</option>
                 {{end}}
             </select>
         
