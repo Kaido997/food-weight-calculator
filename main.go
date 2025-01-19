@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/kaido997/weightcalc/api/handler"
+	api "github.com/kaido997/weightcalc/api/handler"
 	"github.com/kaido997/weightcalc/internal/database"
 	authservice "github.com/kaido997/weightcalc/services/auth_service"
 )
@@ -72,17 +72,17 @@ func buildTrasnlationResponseDTO(data database.Translation) TranslationDTO {
 	for i, k := range keys {
 		sorted[i] = [2]string{k, data.FoodTypes[k]}
 	}
-    return TranslationDTO{
-        Title: data.Title,
-        RawWeightLabel: data.RawWeightLabel,
-        RawWeightInputPlaceholder: data.RawWeightInputPlaceholder,
-        FoodTypeLabel: data.FoodTypeLabel,
-        CalcButtonLabel: data.CalcButtonLabel,
-        ResultLabel: data.ResultLabel,
-        MetaDescription: data.MetaDescription,
-        MetaKeywords: data.MetaKeywords,
-        FoodTypes: sorted,
-    }
+	return TranslationDTO{
+		Title:                     data.Title,
+		RawWeightLabel:            data.RawWeightLabel,
+		RawWeightInputPlaceholder: data.RawWeightInputPlaceholder,
+		FoodTypeLabel:             data.FoodTypeLabel,
+		CalcButtonLabel:           data.CalcButtonLabel,
+		ResultLabel:               data.ResultLabel,
+		MetaDescription:           data.MetaDescription,
+		MetaKeywords:              data.MetaKeywords,
+		FoodTypes:                 sorted,
+	}
 
 }
 
@@ -152,8 +152,8 @@ func main() {
 		}
 
 		val := r.Header.Get("authorization")
-        log.Println(val)
-		if val != ""  {
+		log.Println(val)
+		if val != "" {
 			if authservice.CheckAuth(val) {
 				database.GetAnalytics()
 				templ.Render(w, "analytics-counter", AnalyticsDTO{PageLoad: database.Analytics["page-load"], Calculation: database.Analytics["calculation"]})
@@ -170,7 +170,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-        log.Printf("PORT not found. found '%s' setting default port: 8080", port)
+		log.Printf("PORT not found. found '%s' setting default port: 8080", port)
 		port = "8080"
 	}
 	log.Fatal(http.ListenAndServe(":"+port, nil))

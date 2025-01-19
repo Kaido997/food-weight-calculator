@@ -37,6 +37,7 @@ func loadFile(path string) ([]byte, error) {
 	return res, nil
 }
 
+// Load data into memory
 func LoadTable() (*table, error) {
 	res, err := loadFile("internal/database/foodtable.json")
 	if err != nil {
