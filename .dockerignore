@@ -3,3 +3,8 @@
 **/tmp
 **/analytics.json
 fly.toml
+
+.git
+**/analytics.json.tmp
+.env
+.env.*

@@ -2,51 +2,65 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+
+	"github.com/kaido997/weightcalc/internal/database"
+	"github.com/kaido997/weightcalc/internal/food"
 )
-const ( 
-    VERSION = "1"
-    API_BASE_URL = "/api/v" + VERSION + "/" 
-)
 
-
-type CalcCookedDTO struct {
-	FoodType string  `json:"food-type"`
-	Quantity float32 `json:"quantity"`
-}
-
-
-func calculateWeight(w http.ResponseWriter, req *http.Request) {
-    if req.Method != "POST" {
-        return;
-    }
-	defer req.Body.Close()
-	body, err := io.ReadAll(req.Body)
+func (h handler) calculateWeight(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	decoder := json.NewDecoder(r.Body)
+	var data struct {
+		Unit     string   `json:"unit"`
+		FoodType string   `json:"food-type"`
+		Quantity *float64 `json:"quantity"`
+	}
+	if err := decoder.Decode(&data); err != nil || data.Quantity == nil {
+		http.Error(w, "invalid calculation request", http.StatusBadRequest)
+		return
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		http.Error(w, "expected one JSON object", http.StatusBadRequest)
+		return
+	}
+	// Keep existing v1 clients working when unit is omitted.
+	if data.Unit == "" {
+		data.Unit = "g"
+	}
+	value, err := h.foods.Calculate(data.FoodType, *data.Quantity, data.Unit)
 	if err != nil {
-		fmt.Fprintf(w, "Error")
+		writeError(w, err)
 		return
 	}
-	var data CalcCookedDTO
-	if err := json.Unmarshal(body, &data); err != nil {
-        fmt.Fprintf(w, "BadRequest: %s", err)
-		return
-	}
-	fmt.Fprintf(w, "{cooked-weight: %.1f}", CalculateCookedFood(data.FoodType, data.Quantity))
+	w.Header().Set("Content-Type", "application/json")
+	// Preserve the endpoint's existing one-decimal precision.
+	fmt.Fprintf(w, `{"cooked-weight": %.1f}`, value)
 }
 
-func Map() {
-    var routesMap map[string]func(w http.ResponseWriter, req *http.Request) 
-    routesMap = make(map[string]func(w http.ResponseWriter, req *http.Request)) 
-    
-    routesMap[API_BASE_URL + "calculate-cooked"] = calculateWeight
+type handler struct{ foods *food.Service }
 
-    log.Printf("Mapped %d routes", len(routesMap))
-    for k, v := range routesMap {
-        log.Printf("Mapped %s", k);
-        http.HandleFunc(k, v);
+func Map(mux *http.ServeMux, foods *food.Service) {
+	h := handler{foods: foods}
+	mux.HandleFunc("POST /api/v1/calculate-cooked", h.calculateWeight)
+	mux.HandleFunc("GET /api/v1/foods", func(w http.ResponseWriter, r *http.Request) {
+		ids, err := foods.GetAll()
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ids)
+	})
+}
 
-    }
+func writeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, database.ErrFoodData) {
+		http.Error(w, "food data unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusBadRequest)
 }

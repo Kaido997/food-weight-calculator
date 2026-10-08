@@ -2,100 +2,58 @@ package database
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
-var Analytics map[string]uint
+type Analytics struct {
+	mu       sync.Mutex
+	path     string
+	counters map[string]uint
+}
 
-func save(data map[string]uint) error {
+func OpenAnalytics(path string) (*Analytics, error) {
+	a := &Analytics{path: path, counters: map[string]uint{"page-load": 0, "calculation": 0}}
+	data, err := os.ReadFile(path)
+	if err == nil {
+		if err := json.Unmarshal(data, &a.counters); err != nil {
+			return nil, err
+		}
+		if a.counters == nil {
+			a.counters = make(map[string]uint)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
 
-	encoded, err := json.Marshal(data)
-
+func (a *Analytics) Increment(name string) error {
+	// Serialize increments and disk writes so concurrent requests cannot lose counts.
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.counters[name]++
+	data, err := json.Marshal(a.counters)
 	if err != nil {
-	    return fmt.Errorf("Error while dumping json: %s", err)
+		return err
 	}
-
-    wd, _ := os.Getwd()
-	if err := os.WriteFile(filepath.Join(wd, "internal/database/analytics/analytics.json"), encoded, 0644); err != nil {
-	    return fmt.Errorf("Error while wrinting file: %s", err)
+	// Rename prevents an interrupted write from truncating the saved counters.
+	if err := os.WriteFile(a.path+".tmp", data, 0644); err != nil {
+		return err
 	}
-    return nil
-
+	return os.Rename(a.path+".tmp", a.path)
 }
 
-func GetAnalytics() error {
-	file, err := loadFile("internal/database/analytics/analytics.json")
-
-	if err != nil {
-		return fmt.Errorf("File loading error: %s", err)
+func (a *Analytics) Snapshot() map[string]uint {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	snapshot := make(map[string]uint, len(a.counters))
+	for key, value := range a.counters {
+		snapshot[key] = value
 	}
-
-	data := make(map[string]uint)
-
-	if err := json.Unmarshal(file, &data); err != nil {
-		log.Fatalf("Unable to parse json: %s", err)
-	}
-
-	Analytics = data
-	return nil
-
-}
-
-func NewCounterAnalytics(name string) {
-	if Analytics == nil {
-        Analytics = make(map[string]uint)
-        Analytics[name] = 0
-        if error := save(Analytics); error != nil {
-            log.Fatalf("Save gone wrong %s", error)
-        }
-        return;
-
-	}
-
-	if len(Analytics) > 0 {
-		keys := make([]string, 0, len(Analytics))
-		for k := range Analytics {
-			keys = append(keys, k)
-		}
-		for k := range keys {
-			if keys[k] == name {
-				log.Print("Analytics already exist")
-                return
-			}
-		}
-		Analytics[name] = 0
-	} else {
-		Analytics[name] = 0
-	}
-}
-
-func CounterIncr(path string) error {
-
-	if Analytics == nil {
-		return fmt.Errorf("Undefined analytics")
-	}
-
-	if len(Analytics) > 0 {
-		keys := make([]string, 0, len(Analytics))
-		for k := range Analytics {
-			keys = append(keys, k)
-		}
-		for k := range keys {
-			if keys[k] == path {
-				Analytics[path]++
-                if err := save(Analytics); err != nil {
-                    log.Fatalf("Cannot increment '%s' because %s occured", path, err)
-                }
-
-				break
-			}
-		}
-	} else {
-		return fmt.Errorf("Empty map")
-	}
-
-	return fmt.Errorf("Path '%s not found", path)
+	return snapshot
 }

@@ -1,104 +1,93 @@
 package database
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
+	"math"
 	"os"
-	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
 )
 
-type foodTable struct {
-	Name   string  `json:"name"`
-	Factor float32 `json:"factor"`
+var ErrUnknownFood = errors.New("unknown food")
+var ErrFoodData = errors.New("food data unavailable")
+
+// FoodStore reloads the file on demand; it owns the cached, validated snapshot.
+// Replace the file by atomic rename so readers see a complete old or new version.
+type FoodStore struct {
+	path    string
+	mu      sync.Mutex
+	source  []byte
+	factors map[string]float64
 }
 
-type table struct {
-	t    []foodTable
-	Keys []string
+func OpenFoods(path string) (*FoodStore, error) {
+	store := &FoodStore{path: path}
+	_, err := store.snapshot()
+	return store, err
 }
 
-type notFound struct {
-	arg string
-}
-
-var Repository *table
-
-func (e *notFound) Error() string {
-	return fmt.Sprintf("%s - not found", e.arg)
-}
-
-func loadFile(path string) ([]byte, error) {
-	wd, _ := os.Getwd()
-	res, err := os.ReadFile(filepath.Join(wd, path))
+func (s *FoodStore) snapshot() (map[string]float64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := os.ReadFile(s.path)
 	if err != nil {
-		return nil, fmt.Errorf("Load File Error: %s", err)
+		return nil, fmt.Errorf("%w: %v", ErrFoodData, err)
 	}
-	return res, nil
-}
-
-// Load data into memory
-func LoadTable() (*table, error) {
-	res, err := loadFile("internal/database/foodtable.json")
-	if err != nil {
-		log.Printf("Load table Error: %s", err)
-		return nil, err
+	// Compare content, not timestamps: a replacement can preserve size and mtime.
+	// The small JSON file is read each time, but parsed only when it changes.
+	if s.factors != nil && bytes.Equal(data, s.source) {
+		return s.factors, nil
 	}
-	data := []foodTable{}
-
-	if err := json.Unmarshal(res, &data); err != nil {
-		log.Printf("Json parse Error: %s", err)
-		return nil, err
+	var rows []struct {
+		Name   string  `json:"name"`
+		Factor float64 `json:"factor"`
 	}
-	var keys []string
-	for val := range data {
-		keys = append(keys, data[val].Name)
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrFoodData, err)
 	}
-	Repository = &table{t: data, Keys: keys}
-	log.Println("Database loaded")
-	return Repository, nil
-}
-
-func (repo *table) GetFactorFor(food string) (float32, error) {
-	if Repository == nil {
-		return 0, fmt.Errorf("Repository not initialized")
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("%w: empty food table", ErrFoodData)
 	}
-	for i := 0; i < len(repo.t); i++ {
-		if repo.t[i].Name == food {
-			return repo.t[i].Factor, nil
+	factors := make(map[string]float64, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.Name) == "" || row.Factor <= 0 || math.IsInf(row.Factor, 0) || math.IsNaN(row.Factor) {
+			return nil, fmt.Errorf("%w: invalid food entry %q", ErrFoodData, row.Name)
 		}
+		if _, exists := factors[row.Name]; exists {
+			return nil, fmt.Errorf("%w: duplicate food %q", ErrFoodData, row.Name)
+		}
+		factors[row.Name] = row.Factor
 	}
-	return 0, &notFound{arg: food}
+	// Publish only complete, valid snapshots. Returned maps are never mutated.
+	s.source, s.factors = data, factors
+	return factors, nil
 }
 
-type Translation struct {
-	Title                     string            `json:"title"`
-	RawWeightLabel            string            `json:"raw-weight-label"`
-	RawWeightInputPlaceholder string            `json:"raw-weight-input-placeholder"`
-	FoodTypeLabel             string            `json:"food-type-label"`
-	CalcButtonLabel           string            `json:"calc-button-label"`
-	ResultLabel               string            `json:"result-label"`
-	MetaDescription           string            `json:"meta-description"`
-	MetaKeywords              string            `json:"meta-keywords"`
-	FoodTypes                 map[string]string `json:"food-types"`
-}
-
-func GetTranslation(locale string) Translation {
-	res, err := loadFile("internal/database/translations/" + locale + ".json")
+func (s *FoodStore) Factor(id string) (float64, error) {
+	factors, err := s.snapshot()
 	if err != nil {
-		log.Printf("Load table Error: %s", err)
+		return 0, err
 	}
-	var data Translation
-
-	if err := json.Unmarshal(res, &data); err != nil {
-		log.Printf("Json parse Error: %s", err)
+	factor, ok := factors[id]
+	if !ok {
+		return 0, fmt.Errorf("%w: %s", ErrUnknownFood, id)
 	}
-
-	return data
-
+	return factor, nil
 }
 
-func GetFaviconPath() string {
-	curr, _ := os.Getwd()
-	return fmt.Sprintf("%s/web/assets/favicon.ico", curr)
+func (s *FoodStore) IDs() ([]string, error) {
+	factors, err := s.snapshot()
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(factors))
+	for id := range factors {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
 }

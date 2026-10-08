@@ -1,178 +1,185 @@
 package main
 
 import (
+	"bytes"
 	"embed"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
-	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
-	"slices"
 	"sort"
 	"strconv"
 
 	api "github.com/kaido997/weightcalc/api/handler"
 	"github.com/kaido997/weightcalc/internal/database"
+	"github.com/kaido997/weightcalc/internal/food"
 	authservice "github.com/kaido997/weightcalc/services/auth_service"
 )
 
-const (
-	GRAMS  = "gr"
-	POUNDS = "lbs"
-)
-
-type Templates struct {
-	templates *template.Template
-}
-
-func (t *Templates) Render(w io.Writer, name string, data interface{}) error {
-	return t.templates.ExecuteTemplate(w, name, data)
-}
-
-//go:embed web/*.html
+//go:embed web/*.html web/assets/* web/manifest.webmanifest web/sw.js
 var resources embed.FS
 
-func NewTemplates() *Templates {
+type pageData struct {
+	database.Translation
+	Language string
+	Foods    [][2]string
+}
 
-	return &Templates{
-		templates: template.Must(template.ParseFS(resources, "web/*.html")),
+func newHandler(analytics *database.Analytics, foods *food.Service) (http.Handler, error) {
+	templates, err := template.ParseFS(resources, "web/*.html")
+	if err != nil {
+		return nil, err
 	}
-}
+	pages := make(map[string]pageData, 2)
+	for _, language := range []string{"en", "it"} {
+		translation, err := database.GetTranslation(language)
+		if err != nil {
+			return nil, err
+		}
+		page := pageData{Translation: translation, Language: language}
 
-type ResultResponseDTO struct {
-	Text  string
-	Value float32
-	Unit  string
-}
-type TranslationDTO struct {
-	Title                     string      `json:"title"`
-	RawWeightLabel            string      `json:"raw-weight-label"`
-	RawWeightInputPlaceholder string      `json:"raw-weight-input-placeholder"`
-	FoodTypeLabel             string      `json:"food-type-label"`
-	CalcButtonLabel           string      `json:"calc-button-label"`
-	ResultLabel               string      `json:"result-label"`
-	MetaDescription           string      `json:"meta-description"`
-	MetaKeywords              string      `json:"meta-keywords"`
-	FoodTypes                 [][2]string `json:"food-types"`
-}
-
-func buildTrasnlationResponseDTO(data database.Translation) TranslationDTO {
-	keys := make([]string, 0, len(data.FoodTypes))
-	for k := range data.FoodTypes {
-		keys = append(keys, k)
+		pages[language] = page
 	}
-
-	sort.SliceStable(keys, func(i, j int) bool {
-		return data.FoodTypes[keys[i]] < data.FoodTypes[keys[j]]
+	pageFor := func(r *http.Request) pageData {
+		if page, ok := pages[r.URL.Query().Get("lang")]; ok {
+			return page
+		}
+		return pages["en"]
+	}
+	render := func(w http.ResponseWriter, status int, name string, data any) {
+		var body bytes.Buffer
+		if err := templates.ExecuteTemplate(&body, name, data); err != nil {
+			log.Printf("render %s: %v", name, err)
+			http.Error(w, "unable to render page", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(status)
+		_, _ = body.WriteTo(w)
+	}
+	count := func(name string) {
+		if err := analytics.Increment(name); err != nil {
+			log.Printf("analytics: %v", err)
+		}
+	}
+	mux := http.NewServeMux()
+	api.Map(mux, foods)
+	assets, err := fs.Sub(resources, "web/assets")
+	if err != nil {
+		return nil, err
+	}
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(assets)))
+	mux.HandleFunc("GET /manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/manifest+json")
+		http.ServeFileFS(w, r, resources, "web/manifest.webmanifest")
 	})
-
-	sorted := make([][2]string, len(keys))
-
-	for i, k := range keys {
-		sorted[i] = [2]string{k, data.FoodTypes[k]}
-	}
-	return TranslationDTO{
-		Title:                     data.Title,
-		RawWeightLabel:            data.RawWeightLabel,
-		RawWeightInputPlaceholder: data.RawWeightInputPlaceholder,
-		FoodTypeLabel:             data.FoodTypeLabel,
-		CalcButtonLabel:           data.CalcButtonLabel,
-		ResultLabel:               data.ResultLabel,
-		MetaDescription:           data.MetaDescription,
-		MetaKeywords:              data.MetaKeywords,
-		FoodTypes:                 sorted,
-	}
-
+	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript")
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeFileFS(w, r, resources, "web/sw.js")
+	})
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		ids, err := foods.GetAll()
+		if err != nil {
+			http.Error(w, "food data unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		page := pageFor(r)
+		for _, id := range ids {
+			label := page.FoodTypes[id]
+			if label == "" {
+				label = id
+			}
+			page.Foods = append(page.Foods, [2]string{id, label})
+		}
+		sort.Slice(page.Foods, func(i, j int) bool {
+			if page.Foods[i][1] == page.Foods[j][1] {
+				return page.Foods[i][0] < page.Foods[j][0]
+			}
+			return page.Foods[i][1] < page.Foods[j][1]
+		})
+		count("page-load")
+		render(w, http.StatusOK, "index", page)
+	})
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, resources, "web/assets/favicon.ico")
+	})
+	mux.HandleFunc("POST /calculate", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
+		quantity, err := strconv.ParseFloat(r.PostForm.Get("quantity"), 64)
+		if err != nil {
+			http.Error(w, "invalid quantity", http.StatusBadRequest)
+			return
+		}
+		unit := r.PostForm.Get("unit")
+		if unit == "" {
+			unit = "g"
+		}
+		value, err := foods.Calculate(r.PostForm.Get("food-type"), quantity, unit)
+		if err != nil {
+			if errors.Is(err, database.ErrFoodData) {
+				http.Error(w, "food data unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			if r.Header.Get("Accept") == "application/json" {
+				code := "invalid-weight"
+				if errors.Is(err, database.ErrUnknownFood) {
+					code = "unknown-food"
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"error": code})
+			} else {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
+			return
+		}
+		count("calculation")
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Header.Get("Accept") == "application/json" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]float64{"cooked-weight": value})
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprintf(w, "%s %.2f (%s)", pageFor(r).ResultLabel, value, unit)
+	})
+	mux.HandleFunc("GET /admin/analytics", func(w http.ResponseWriter, r *http.Request) {
+		if !authservice.CheckAuth(r.Header.Get("Authorization")) {
+			render(w, http.StatusUnauthorized, "unauthorized", nil)
+			return
+		}
+		counts := analytics.Snapshot()
+		render(w, http.StatusOK, "analytics-counter", struct{ PageLoad, Calculation uint }{counts["page-load"], counts["calculation"]})
+	})
+	return mux, nil
 }
 
 func main() {
-	log.Println("Starting application")
-	database.LoadTable()
-	api.Map()
-	translation := database.GetTranslation("en")
-	templ := NewTemplates()
-
-	database.GetAnalytics()
-
-	database.NewCounterAnalytics("page-load")
-	database.NewCounterAnalytics("calculation")
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			return
-		}
-		in := []string{"en", "it"}
-		val := r.URL.Query()
-		if val != nil && val["lang"] != nil && slices.Contains(in, val["lang"][0]) {
-			translation = database.GetTranslation(val["lang"][0])
-
-		}
-		database.CounterIncr("page-load")
-		templ.Render(w, "index", buildTrasnlationResponseDTO(translation))
-	})
-	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("get icon")
-		if r.Method != "GET" {
-			return
-		}
-		http.ServeFile(w, r, database.GetFaviconPath())
-	})
-
-	http.HandleFunc("/calculate", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			return
-		}
-
-		if err := r.ParseForm(); err != nil {
-			fmt.Fprintf(w, "BadRequest: %s", err)
-		}
-		float, err := strconv.ParseFloat(r.PostForm["quantity"][0], 32)
-		if err != nil {
-			fmt.Fprintf(w, "BadRequest: %s", err)
-		}
-		var data api.CalcCookedDTO = api.CalcCookedDTO{FoodType: r.PostForm["food-type"][0], Quantity: float32(float)}
-
-		response := ResultResponseDTO{
-			Text:  translation.ResultLabel,
-			Value: api.CalculateCookedFood(data.FoodType, data.Quantity),
-			Unit:  fmt.Sprintf("(%s.)", GRAMS),
-		}
-		database.CounterIncr("calculation")
-		templ.Render(w, "calculation-result", response)
-	})
-
-	http.HandleFunc("/admin/analytics", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			return
-		}
-		type AnalyticsDTO struct {
-			PageLoad    uint
-			Calculation uint
-		}
-
-		val := r.Header.Get("authorization")
-		log.Println(val)
-		if val != "" {
-			if authservice.CheckAuth(val) {
-				database.GetAnalytics()
-				templ.Render(w, "analytics-counter", AnalyticsDTO{PageLoad: database.Analytics["page-load"], Calculation: database.Analytics["calculation"]})
-			} else {
-				templ.Render(w, "unauthorized", nil)
-
-			}
-
-		} else {
-			templ.Render(w, "unauthorized", nil)
-		}
-
-	})
-
+	store, err := database.OpenFoods("internal/database/foodtable.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	foods := food.New(store)
+	analytics, err := database.OpenAnalytics("internal/database/analytics/analytics.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	handler, err := newHandler(analytics, foods)
+	if err != nil {
+		log.Fatal(err)
+	}
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Printf("PORT not found. found '%s' setting default port: 8080", port)
 		port = "8080"
 	}
-	log.Fatal(http.ListenAndServe(":"+port, nil))
-
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }

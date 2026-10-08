@@ -1,103 +1,79 @@
-{{ block "index" .}}
+{{ define "index" }}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ .Language }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content={{ .MetaDescription }}>
-    <meta name="keywords" content={{ .MetaKeywords }}>
-    <meta name="author" content="Kaido997">
-    <script src="https://unpkg.com/htmx.org/dist/htmx.js"></script>
-    <link rel="icon" src="/favicon.ico">
-    <title>{{ .Title }}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-        }
-        .container {
-            background-color: #fff;
-            padding: 35px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            text-align: center;
-            justify-content: center; 
-            width: 365px;
-        }
-        input, select, button {
-            width: 95%;
-            max-width: 365px;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            background-color: #28a745;
-            color: #fff;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        .result {
-            font-size: 18px;
-            margin-top: 15px;
-            color: #333;
-        }
-        .language-selector {
-            margin-bottom: 2px;
-        }
-        .lang-flag {
-            margin-left: 5px;
-            cursor: pointer;
-        }
-        .lang-flag > a {
-            text-decoration: none;
-        }
-    </style>
+    {{ template "head" . }}
+    <script src="/assets/calculator.js" defer></script>
+    <script src="/assets/food-search.js" defer></script>
 </head>
 <body>
-    <header>
-    <div class="language-selector">
-            <span class="lang-flag">
-                <a href="/?lang=it"><img src="https://flagcdn.com/it.svg" alt="Italy" width="20" height="10">
-                </a>
-            </span>
-            <span class="lang-flag">
-                <a href="/?lang=en"><img src="https://flagcdn.com/gb.svg" alt="UK" width="20" height="10">
-                </a>
-            </span>
+    <a class="skip-link" href="#calculator">{{ .UI.Skip }}</a>
+    <div class="split-layout">
+        <aside class="intro" aria-labelledby="intro-title">
+            <img class="intro-image" src="/assets/food-prep.png" alt="" width="880" height="1166" fetchpriority="high">
+            {{ template "brand" . }}
+            <div class="intro-copy">
+                <p class="eyebrow">FOOD WEIGHT</p>
+                <h1 id="intro-title">{{ .UI.HeroTitle }}</h1>
+                <p class="intro-description">{{ .UI.HeroDescription }}</p>
+            </div>
+            <p class="intro-note"><span aria-hidden="true">↗</span> {{ .UI.HeroNote }}</p>
+        </aside>
+        <main class="workspace" id="calculator" tabindex="-1">
+            <header class="workspace-header">{{ template "preferences" . }}</header>
+            <section class="calculator" aria-labelledby="calculator-title">
+                <div class="calculator-heading">
+                    <h2 id="calculator-title">{{ .UI.CalculatorTitle }}</h2>
+                    <p class="muted">{{ .UI.CalculatorDescription }}</p>
+                </div>
+                <form id="weight-form" action="/calculate?lang={{ .Language }}" method="post" novalidate>
+                    <div class="field">
+                        <label for="foodType">{{ .FoodTypeLabel }}</label>
+                        <div id="food-search-box" class="search-box" hidden>
+                            <label for="food-search" class="sr-only">{{ .UI.SearchFood }}</label>
+                            <input id="food-search" class="control search-input" type="search" placeholder="{{ .UI.SearchFood }}" autocomplete="off" aria-controls="foodType" aria-describedby="food-help">
+                            <button id="clear-food-search" class="search-clear" type="button" disabled hidden aria-label="{{ .UI.ClearSearch }}" title="{{ .UI.ClearSearch }}">×</button>
+                        </div>
+                        <select id="foodType" name="food-type" class="control food-select" aria-describedby="food-help food-error" required>
+                            {{range $val := .Foods}}<option value="{{index $val 0}}"{{if eq (index $val 0) "FOOD_RICE"}} selected{{end}}>{{index $val 1}}</option>{{end}}
+                        </select>
+                        <div class="field-feedback"><p id="food-help" class="field-help" role="status">{{ .UI.FoodHint }}</p>
+                        <p id="food-error" class="field-error" hidden></p></div>
+                    </div>
+                    <div class="field">
+                        <div class="field-heading">
+                            <label for="rawWeight">{{ .UI.RawLabel }}</label>
+                            <fieldset class="segments unit-picker" aria-label="{{ .UI.UnitLabel }}">
+                                <legend class="sr-only">{{ .UI.UnitLabel }}</legend>
+                                <label title="{{ .UI.Grams }}"><input type="radio" name="unit" value="g" checked><span>g</span></label>
+                                <label title="{{ .UI.Pounds }}"><input type="radio" name="unit" value="lbs"><span>lbs</span></label>
+                            </fieldset>
+                        </div>
+                        <input class="control weight-input" type="number" name="quantity" id="rawWeight" inputmode="decimal" placeholder="{{ .UI.WeightPlaceholder }}" min="0" step="any" aria-describedby="weight-help weight-error" required>
+                        <div class="field-feedback"><p id="weight-help" class="field-help">{{ .UI.WeightHint }}</p>
+                        <p id="weight-error" class="field-error" hidden></p></div>
+                    </div>
+                    <button class="button button-primary calculate-button" type="submit"><span data-submit-label>{{ .UI.Calculate }}</span><span class="button-arrow" aria-hidden="true">↗</span><span class="spinner" aria-hidden="true" hidden></span></button>
+                    <p id="form-error" class="form-message" role="alert"></p>
+                    <p id="connection-status" class="connection-status" role="status" hidden>{{ .UI.Offline }}</p>
+                    <a id="reload-foods" class="text-link" href="/?lang={{ .Language }}" hidden>{{ .UI.Reload }}</a>
+                    <noscript><p class="field-help">{{ .UI.NoScript }}</p></noscript>
+                </form>
+                <section class="result-panel" aria-labelledby="result-title">
+                    <p id="result-title" class="result-label">{{ .UI.ResultTitle }}</p>
+                    <div id="result" role="status" aria-live="polite" aria-atomic="true">
+                        <p class="result-empty">{{ .UI.ResultEmpty }}</p>
+                    </div>
+                </section>
+                <details class="explanation"><summary>{{ .UI.HowTitle }}<span aria-hidden="true">+</span></summary><p>{{ .UI.HowText }}</p><p>{{ .UI.ResultNote }}</p></details>
+            </section>
+            <footer class="workspace-footer">
+                <span>Food Weight</span>
+                <div class="install-area"><button class="text-link" id="install-button" type="button" disabled aria-expanded="false" aria-controls="install-help">{{ .UI.Install }} <span aria-hidden="true">↓</span></button><p id="install-help" hidden>{{ .UI.InstallHelp }}</p></div>
+            </footer>
+        </main>
     </div>
-    </header>
-    <div class="container">
-        <h1>{{ .Title }}</h1>
-        <form hx-target="#result" hx-post="/calculate">
-            <label for="rawWeight">{{ .RawWeightLabel }}:</label>
-            <input type="number" name="quantity" id="rawWeight" placeholder={{ .RawWeightInputPlaceholder }} required>
-            <label for="foodType">{{.FoodTypeLabel }}:</label>
-            <select id="foodType" type="text" name="food-type">
-                {{range $val := .FoodTypes }}
-                    <option value={{ index $val 0 }}>{{ index $val 1 }}</option>
-                {{end}}
-            </select>
-        
-                <button type="submit">{{ .CalcButtonLabel }}</button>
-        </form>
-        
-            {{ template "calculation-result"  .}}
-    </div>
+    <script id="ui-messages" type="application/json">{{ .UI }}</script>
 </body>
 </html>
-{{ end }}
-
-{{ block "calculation-result" .}}
-<div id="result" class="result">{{ .Text }} {{ printf "%.2f" .Value }} {{ .Unit }}</div>
 {{ end }}

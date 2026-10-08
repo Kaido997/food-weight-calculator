@@ -8,11 +8,10 @@ primary_region = 'cdg'
 
 [build]
   [build.args]
-    GO_VERSION = '1.23.1'
+    GO_VERSION = '1.27.1'
 
 [env]
   PORT = '8080'
-  ENV = 'PROD'
 
 [http_service]
   internal_port = 8080
@@ -21,6 +20,14 @@ primary_region = 'cdg'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
+
+# Check the live food data without incrementing page analytics.
+[[http_service.checks]]
+  grace_period = '10s'
+  interval = '30s'
+  method = 'GET'
+  timeout = '5s'
+  path = '/api/v1/foods'
 
 [[vm]]
   memory = '1gb'
